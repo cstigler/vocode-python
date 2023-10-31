@@ -17,6 +17,7 @@ There are two ways to run the BE server:
 1. In Docker
 
 ```
+# from vocode-python dir (not /apps/client-backend)
 make build-dev # build for development
 make run-dev # build and run for development
 make deploy # deploy to Docker Hub repo
