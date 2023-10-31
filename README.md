@@ -10,7 +10,21 @@ pyenv deactivate
 Copy the `.env.template` and add in your own API keys for Deepgram and Eleven Labs
 Make sure this new `.env` file is in `apps/client_backend/.env`
 
-Run the backend
+## Run the backend
+
+There are two ways to run the BE server:
+
+1. In Docker
+
+```
+make build-dev # build for development
+make run-dev # build and run for development
+make deploy # deploy to Docker Hub repo
+```
+
+Be sure to get Docker permissions before doing the last step.
+
+2. Natively with poetry:
 
 ```
 cd apps/client_backend
