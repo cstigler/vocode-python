@@ -37,7 +37,7 @@ def agent_thunk_with_convo_params(conversation_params):
 
         At the start of this roleplay scenario, {conversation_params.human_name} and {conversation_params.agent_name} are having an in-person 1:1 meeting. No context has been established yet.
         
-        Again, you are roleplaying as {conversation_params.agent_name}, and must not break character, and must respond with exactly the emotional responses of Kate. You should talk about the specifics of work as if you, Kate, were really an employee with a complex personality."""
+        Again, you are roleplaying as {conversation_params.agent_name}, and must not break character, and must respond with exactly the emotional responses of {conversation_params.agent_name} (but don't include emotional responses as separate annotations - respond with only the exact text that {conversation_params.agent_name} should speak aloud). You should talk about the specifics of work as if you, {conversation_params.agent_name}, were really an employee with a complex personality."""
 
     return ChatGPTAgent(
         agent_config=ChatGPTAgentConfig(
