@@ -1,15 +1,20 @@
 .PHONY: deploy build-dev run-dev lint lint_diff typecheck typecheck_diff test help
 
+USERNAME = cstigler
+REPO_NAME = vocode-python
+IMAGE_NAME = $(USERNAME)/$(REPO_NAME)
+TAG = latest
+
 deploy:
-	docker buildx build --platform=linux/amd64 -t speaksage-vocode-python .
-	docker tag speaksage-vocode-backend:latest cstigler/speaksage-vocode-backend:latest
-	docker push cstigler/speaksage-vocode-backend:latest
+	docker buildx build --platform=linux/amd64 -t $(IMAGE_NAME):$(TAG) --label org.opencontainers.image.source=https://github.com/$(USERNAME)/$(REPO_NAME) .
+	docker tag $(IMAGE_NAME):$(TAG) ghcr.io/$(IMAGE_NAME):$(TAG)
+	docker push ghcr.io/$(IMAGE_NAME):$(TAG)
 
 build-dev:
-	docker build -t speaksage-vocode-backend .
+	docker build -t $(IMAGE_NAME) .
 
 run-dev:
-	docker build -t speaksage-vocode-backend . && docker run --env-file=./apps/client_backend/.env -p 8080:8080 -t speaksage-vocode-backend
+	docker build -t $(IMAGE_NAME) . && docker run -d --init --env-file=./apps/client_backend/.env -p 8080:8080 -t $(IMAGE_NAME)
 
 PYTHON_FILES=.
 lint: PYTHON_FILES=vocode/ apps/
