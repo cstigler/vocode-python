@@ -1,5 +1,7 @@
 FROM python:3.9-bullseye
 
+LABEL org.opencontainers.image.source=https://github.com/cstigler/speaksage
+
 # Install system dependencies
 RUN apt-get update \
     && apt-get install -y libportaudio2 libportaudiocpp0 portaudio19-dev libasound-dev libsndfile1-dev ffmpeg \
