@@ -30,3 +30,7 @@ jobs:
           tags: ghcr.io/${{ github.repository }}/speaksage-vocode-backend:latest
           labels: org.opencontainers.image.source=${{ github.event.repository.html_url }}
           platforms: linux/amd64
+
+      - name: Trigger Render Deployment
+        run: |
+          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
