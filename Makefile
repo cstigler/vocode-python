@@ -6,9 +6,16 @@ IMAGE_NAME = $(USERNAME)/$(REPO_NAME)
 TAG = latest
 
 deploy:
-	docker buildx build --platform=linux/amd64 -t $(IMAGE_NAME):$(TAG) --label org.opencontainers.image.source=https://github.com/$(USERNAME)/$(REPO_NAME) .
-	docker tag $(IMAGE_NAME):$(TAG) ghcr.io/$(IMAGE_NAME):$(TAG)
-	docker push ghcr.io/$(IMAGE_NAME):$(TAG)
+	@CHANGES=$$(git status --porcelain) && \
+	if [ -n "$$CHANGES" ]; then \
+		echo "Uncommitted changes detected. Commit or stash them before deploying."; \
+		exit 1; \
+	fi && \
+	CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD) && \
+	git checkout prod && \
+	git reset --hard $$CURRENT_BRANCH && \
+	git push origin prod --force && \
+	git checkout $$CURRENT_BRANCH
 
 build-dev:
 	docker build -t $(IMAGE_NAME) .
