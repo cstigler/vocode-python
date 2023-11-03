@@ -46,10 +46,10 @@ class ConversationParams:
     def get_conversation_params(websocket):
         query_params = websocket.query_params
         return ConversationParams(
-            human_name=query_params.get('humanName'),
-            agent_name=query_params.get('agentName'),
-            company_name=query_params.get('companyName'),
-            situation=query_params.get('situation')
+            human_name=query_params.get("humanName"),
+            agent_name=query_params.get("agentName"),
+            company_name=query_params.get("companyName"),
+            situation=query_params.get("situation"),
         )
 
 
@@ -64,7 +64,7 @@ class ConversationRouter(BaseRouter):
                 input_audio_config=input_audio_config,
                 endpointing_config=PunctuationEndpointingConfig(),
             ),
-            logger=logger
+            logger=logger,
         ),
         synthesizer_thunk: Callable[
             [OutputAudioConfig], BaseSynthesizer
@@ -91,12 +91,12 @@ class ConversationRouter(BaseRouter):
         start_message: AudioConfigStartMessage,
     ) -> StreamingConversation:
         transcriber = self.transcriber_thunk(
-            start_message.input_audio_config, self.logger)
+            start_message.input_audio_config, self.logger
+        )
         synthesizer = self.synthesizer_thunk(start_message.output_audio_config)
         synthesizer.synthesizer_config.should_encode_as_wav = True
 
-        conversation_params = ConversationParams.get_conversation_params(
-            websocket)
+        conversation_params = ConversationParams.get_conversation_params(websocket)
 
         self.logger.debug(conversation_params)
 
@@ -123,8 +123,7 @@ class ConversationRouter(BaseRouter):
             start_message.output_audio_config.sampling_rate,
             start_message.output_audio_config.audio_encoding,
         )
-        conversation = self.get_conversation(
-            websocket, output_device, start_message)
+        conversation = self.get_conversation(websocket, output_device, start_message)
         await conversation.start(lambda: websocket.send_text(ReadyMessage().json()))
         while conversation.is_active():
             message: WebSocketMessage = WebSocketMessage.parse_obj(
@@ -132,6 +131,13 @@ class ConversationRouter(BaseRouter):
             )
             if message.type == WebSocketMessageType.STOP:
                 break
+
+            if (
+                "speaking_signal_active" in message
+                and message["speaking_signal_active"]
+            ):
+                conversation.speaking_signal_active = True
+
             audio_message = typing.cast(AudioMessage, message)
             conversation.receive_audio(audio_message.get_bytes())
         output_device.mark_closed()

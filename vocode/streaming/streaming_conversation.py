@@ -448,6 +448,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
             )
 
         self.is_human_speaking = False
+        self._speaking_signal_active = False
         self.active = False
         self.mark_last_action_timestamp()
 
@@ -459,6 +460,16 @@ class StreamingConversation(Generic[OutputDeviceType]):
         # tracing
         self.start_time: Optional[float] = None
         self.end_time: Optional[float] = None
+
+    @property
+    def speaking_signal_active(self):
+        return self._speaking_signal_active
+
+    @speaking_signal_active.setter
+    def speaking_signal_active(self, value):
+        self._speaking_signal_active = value
+        if self.transcriber is not None:
+            self.transcriber.speaking_signal_active = value
 
     def create_state_manager(self) -> ConversationStateManager:
         return ConversationStateManager(conversation=self)
