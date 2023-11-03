@@ -1,3 +1,12 @@
+from vocode.streaming.models.message import BaseMessage
+from vocode.streaming.models.synthesizer import *
+from vocode.streaming.models.agent import *
+from vocode.streaming.models.transcriber import *
+from vocode.streaming.synthesizer import *
+from vocode.streaming.agent import *
+from vocode.streaming.transcriber import *
+from vocode.helpers import create_streaming_microphone_input_and_speaker_output
+from vocode.streaming.streaming_conversation import StreamingConversation
 import asyncio
 import logging
 import signal
@@ -5,16 +14,6 @@ from dotenv import load_dotenv
 
 
 load_dotenv()
-
-from vocode.streaming.streaming_conversation import StreamingConversation
-from vocode.helpers import create_streaming_microphone_input_and_speaker_output
-from vocode.streaming.transcriber import *
-from vocode.streaming.agent import *
-from vocode.streaming.synthesizer import *
-from vocode.streaming.models.transcriber import *
-from vocode.streaming.models.agent import *
-from vocode.streaming.models.synthesizer import *
-from vocode.streaming.models.message import BaseMessage
 
 
 logging.basicConfig()
@@ -29,16 +28,18 @@ async def main():
     ) = create_streaming_microphone_input_and_speaker_output(
         use_default_devices=False,
         logger=logger,
-        use_blocking_speaker_output=True,  # this moves the playback to a separate thread, set to False to use the main thread
+        # this moves the playback to a separate thread, set to False to use the main thread
+        use_blocking_speaker_output=True,
     )
 
     conversation = StreamingConversation(
         output_device=speaker_output,
         transcriber=DeepgramTranscriber(
-            DeepgramTranscriberConfig.from_input_device(
+            transcriber_config=DeepgramTranscriberConfig.from_input_device(
                 microphone_input,
                 endpointing_config=PunctuationEndpointingConfig(),
-            )
+            ),
+            logger=logger
         ),
         agent=ChatGPTAgent(
             ChatGPTAgentConfig(
@@ -54,7 +55,8 @@ async def main():
     await conversation.start()
     print("Conversation started, press Ctrl+C to end")
     signal.signal(
-        signal.SIGINT, lambda _0, _1: asyncio.create_task(conversation.terminate())
+        signal.SIGINT, lambda _0, _1: asyncio.create_task(
+            conversation.terminate())
     )
     while conversation.is_active():
         chunk = await microphone_input.get_audio()

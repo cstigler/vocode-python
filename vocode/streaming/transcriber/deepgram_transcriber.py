@@ -126,8 +126,11 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
         return f"wss://api.deepgram.com/v1/listen?{urlencode(url_params)}"
 
     def is_speech_final(
-        self, current_buffer: str, deepgram_response: dict, time_silent: float
+        self, current_buffer: str, deepgram_response: dict, time_silent: float, speaking_signal_active: bool
     ):
+        # if speaking_signal_active:
+        #     return False
+
         transcript = deepgram_response["channel"]["alternatives"][0]["transcript"]
 
         # if it is not time based, then return true if speech is final and there is a transcript
@@ -201,9 +204,11 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                     try:
                         msg = await ws.recv()
                     except Exception as e:
-                        self.logger.debug(f"Got error {e} in Deepgram receiver")
+                        self.logger.debug(
+                            f"Got error {e} in Deepgram receiver")
                         break
                     data = json.loads(msg)
+                    self.logger.debug(f"DeepgramTranscriber data is ${data}\n")
                     if (
                         not "is_final" in data
                     ):  # means we've finished receiving transcriptions
@@ -213,7 +218,8 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                     cur_min_latency = self.audio_cursor - transcript_cursor
 
                     avg_latency_hist.record(
-                        (cur_min_latency + cur_max_latency) / 2 * data["duration"]
+                        (cur_min_latency + cur_max_latency) /
+                        2 * data["duration"]
                     )
                     duration_hist.record(data["duration"])
 
@@ -222,7 +228,9 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                     min_latency_hist.record(max(cur_min_latency, 0))
 
                     is_final = data["is_final"]
-                    speech_final = self.is_speech_final(buffer, data, time_silent)
+                    speaking_key_active = True  # change this
+                    speech_final = self.is_speech_final(
+                        buffer, data, time_silent, speaking_key_active)
                     top_choice = data["channel"]["alternatives"][0]
                     confidence = top_choice["confidence"]
 
