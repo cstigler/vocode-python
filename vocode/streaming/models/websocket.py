@@ -20,6 +20,7 @@ class WebSocketMessageType(str, Enum):
     READY = "websocket_ready"
     STOP = "websocket_stop"
     AUDIO_CONFIG_START = "websocket_audio_config_start"
+    SPEAKING_SIGNAL_CHANGE = "websocket_speaking_signal_change"
 
 
 class WebSocketMessage(TypedModel, type=WebSocketMessageType.BASE):
@@ -35,6 +36,10 @@ class AudioMessage(WebSocketMessage, type=WebSocketMessageType.AUDIO):
 
     def get_bytes(self) -> bytes:
         return base64.b64decode(self.data)
+
+
+class SpeakingSignalMessage(WebSocketMessage, type=WebSocketMessageType.SPEAKING_SIGNAL_CHANGE):
+    is_active: bool
 
 
 class TranscriptMessage(WebSocketMessage, type=WebSocketMessageType.TRANSCRIPT):

@@ -16,6 +16,7 @@ from vocode.streaming.models.websocket import (
     AudioConfigStartMessage,
     AudioMessage,
     ReadyMessage,
+    SpeakingSignalMessage,
     WebSocketMessage,
     WebSocketMessageType,
 )
@@ -59,11 +60,12 @@ class ConversationRouter(BaseRouter):
         agent_thunk: Callable[[], BaseAgent],
         transcriber_thunk: Callable[
             [InputAudioConfig], BaseTranscriber
-        ] = lambda input_audio_config: DeepgramTranscriber(
-            DeepgramTranscriberConfig.from_input_audio_config(
+        ] = lambda input_audio_config, logger: DeepgramTranscriber(
+            transcriber_config=DeepgramTranscriberConfig.from_input_audio_config(
                 input_audio_config=input_audio_config,
                 endpointing_config=PunctuationEndpointingConfig(),
-            )
+            ),
+            logger=logger
         ),
         synthesizer_thunk: Callable[
             [OutputAudioConfig], BaseSynthesizer
@@ -89,7 +91,8 @@ class ConversationRouter(BaseRouter):
         output_device: WebsocketOutputDevice,
         start_message: AudioConfigStartMessage,
     ) -> StreamingConversation:
-        transcriber = self.transcriber_thunk(start_message.input_audio_config)
+        transcriber = self.transcriber_thunk(
+            start_message.input_audio_config, self.logger)
         synthesizer = self.synthesizer_thunk(start_message.output_audio_config)
         synthesizer.synthesizer_config.should_encode_as_wav = True
 
@@ -130,6 +133,9 @@ class ConversationRouter(BaseRouter):
             )
             if message.type == WebSocketMessageType.STOP:
                 break
+            if message.type == WebSocketMessageType.SPEAKING_SIGNAL_CHANGE:
+                speaking_signal = typing.cast(SpeakingSignalMessage, message)
+                conversation.speaking_signal_active = speaking_signal.is_active
             audio_message = typing.cast(AudioMessage, message)
             conversation.receive_audio(audio_message.get_bytes())
         output_device.mark_closed()

@@ -62,6 +62,17 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
         self.is_ready = False
         self.logger = logger or logging.getLogger(__name__)
         self.audio_cursor = 0.0
+        self._speaking_signal_active = False
+
+    @property
+    def speaking_signal_active(self):
+        return self._speaking_signal_active
+
+    @speaking_signal_active.setter
+    def speaking_signal_active(self, value):
+        if not isinstance(value, bool):
+            raise ValueError("speaking_signal_active must be a boolean")
+        self._speaking_signal_active = value
 
     async def _run_loop(self):
         restarts = 0
@@ -128,6 +139,9 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
     def is_speech_final(
         self, current_buffer: str, deepgram_response: dict, time_silent: float
     ):
+        if self._speaking_signal_active:
+            return False
+
         transcript = deepgram_response["channel"]["alternatives"][0]["transcript"]
 
         # if it is not time based, then return true if speech is final and there is a transcript
@@ -201,7 +215,8 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                     try:
                         msg = await ws.recv()
                     except Exception as e:
-                        self.logger.debug(f"Got error {e} in Deepgram receiver")
+                        self.logger.debug(
+                            f"Got error {e} in Deepgram receiver")
                         break
                     data = json.loads(msg)
                     if (
@@ -213,7 +228,8 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                     cur_min_latency = self.audio_cursor - transcript_cursor
 
                     avg_latency_hist.record(
-                        (cur_min_latency + cur_max_latency) / 2 * data["duration"]
+                        (cur_min_latency + cur_max_latency) /
+                        2 * data["duration"]
                     )
                     duration_hist.record(data["duration"])
 
@@ -222,7 +238,8 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                     min_latency_hist.record(max(cur_min_latency, 0))
 
                     is_final = data["is_final"]
-                    speech_final = self.is_speech_final(buffer, data, time_silent)
+                    speech_final = self.is_speech_final(
+                        buffer, data, time_silent)
                     top_choice = data["channel"]["alternatives"][0]
                     confidence = top_choice["confidence"]
 
