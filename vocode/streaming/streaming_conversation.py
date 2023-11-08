@@ -463,7 +463,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
             )
 
         self.is_human_speaking = False
-        self._speaking_signal_Active = False
+        self._speaking_signal_active = False
         self.active = False
         self.mark_last_action_timestamp()
 

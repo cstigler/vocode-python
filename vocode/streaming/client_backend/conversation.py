@@ -133,11 +133,16 @@ class ConversationRouter(BaseRouter):
             )
             if message.type == WebSocketMessageType.STOP:
                 break
-            if message.type == WebSocketMessageType.SPEAKING_SIGNAL_CHANGE:
+            elif message.type == WebSocketMessageType.SPEAKING_SIGNAL_CHANGE:
                 speaking_signal = typing.cast(SpeakingSignalMessage, message)
+                self.logger.debug(
+                    f"SPEAKING SIGNAL CHANGE RECEIVED AS {speaking_signal.is_active} \n")
                 conversation.speaking_signal_active = speaking_signal.is_active
-            audio_message = typing.cast(AudioMessage, message)
-            conversation.receive_audio(audio_message.get_bytes())
+                self.logger.debug(
+                    f"Conversation.py: Conversation.speaking_signal_active set to {conversation.speaking_signal_active} \n")
+            else:
+                audio_message = typing.cast(AudioMessage, message)
+                conversation.receive_audio(audio_message.get_bytes())
         output_device.mark_closed()
         await conversation.terminate()
 
