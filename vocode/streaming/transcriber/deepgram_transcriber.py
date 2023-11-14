@@ -62,7 +62,6 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
         self.is_ready = False
         self.logger = logger or logging.getLogger(__name__)
         self.audio_cursor = 0.0
-        self._speaking_signal_active = False
 
     async def _run_loop(self):
         restarts = 0
@@ -129,7 +128,6 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
     def is_speech_final(
         self, current_buffer: str, deepgram_response: dict, time_silent: float
     ):
-
         transcript = deepgram_response["channel"]["alternatives"][0]["transcript"]
 
         # if it is not time based, then return true if speech is final and there is a transcript
@@ -203,8 +201,7 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                     try:
                         msg = await ws.recv()
                     except Exception as e:
-                        self.logger.debug(
-                            f"Got error {e} in Deepgram receiver")
+                        self.logger.debug(f"Got error {e} in Deepgram receiver")
                         break
                     data = json.loads(msg)
                     if (
