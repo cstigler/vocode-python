@@ -483,7 +483,11 @@ class StreamingConversation(Generic[OutputDeviceType]):
     @speaking_signal_active.setter
     def speaking_signal_active(self, value):
         self._speaking_signal_active = value
+        self.logger.debug(
+            f"streaming_conversation.py: speaking_signal_active is set to {value}")
         if self.transcriber is not None:
+            self.logger.debug(
+                f"streaming_conversation.py: transcriber.speaking_signal_active set to {value}")
             self.transcriber.speaking_signal_active = value
 
     def create_state_manager(self) -> ConversationStateManager:

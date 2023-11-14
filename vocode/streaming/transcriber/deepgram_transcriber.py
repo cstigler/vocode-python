@@ -70,6 +70,8 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
 
     @speaking_signal_active.setter
     def speaking_signal_active(self, value):
+        self.logger.debug(
+            f"Deepgram_transcriber.py: speaking_signal_active is set to {value}")
         if not isinstance(value, bool):
             raise ValueError("speaking_signal_active must be a boolean")
         self._speaking_signal_active = value
@@ -143,9 +145,14 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
             return False
 
         transcript = deepgram_response["channel"]["alternatives"][0]["transcript"]
+        deepgram_log = deepgram_response["speech_final"]
+        self.logger.debug(
+            f"deepgram_transcriber.py: deepgram response speech_final is {deepgram_log}")
 
         # if it is not time based, then return true if speech is final and there is a transcript
         if not self.transcriber_config.endpointing_config:
+            self.logger.debug(
+                f"deepgram_transcriber.py: is_speech_final endpointing config returning {transcript} and deep_gram final {deepgram_log}")
             return transcript and deepgram_response["speech_final"]
         elif isinstance(
             self.transcriber_config.endpointing_config, TimeEndpointingConfig
@@ -153,6 +160,8 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
             # if it is time based, then return true if there is no transcript
             # and there is some speech to send
             # and the time_silent is greater than the cutoff
+            self.logger.debug(
+                f"deepgram_transcriber.py: is_speech_final Time endpoint config, transcript {transcript}, current buffer {current_buffer}")
             return (
                 not transcript
                 and current_buffer
@@ -162,6 +171,8 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
         elif isinstance(
             self.transcriber_config.endpointing_config, PunctuationEndpointingConfig
         ):
+            self.logger.debug(
+                f"deepgram_transcriber.py: is_speech_final Punctuation config of transcript: {transcript}, deep_gram speech_final {deepgram_log}")
             return (
                 transcript
                 and deepgram_response["speech_final"]
@@ -219,6 +230,8 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                             f"Got error {e} in Deepgram receiver")
                         break
                     data = json.loads(msg)
+                    self.logger.debug(
+                        f"deepgram_transcriber.py: receiver got {data}")
                     if (
                         not "is_final" in data
                     ):  # means we've finished receiving transcriptions
@@ -254,7 +267,11 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                             ) * (num_buffer_utterances / (num_buffer_utterances + 1))
                         num_buffer_utterances += 1
 
+                    self.logger.debug(
+                        f"deepgram_transciber.py: speech_final checking {speech_final}")
                     if speech_final:
+                        self.logger.debug(
+                            f"deepgram_transcriber.py: speech is final - putting in output queue {buffer} ")
                         self.output_queue.put_nowait(
                             Transcription(
                                 message=buffer,
@@ -267,6 +284,8 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                         num_buffer_utterances = 1
                         time_silent = 0
                     elif top_choice["transcript"] and confidence > 0.0:
+                        self.logger.debug(
+                            f"deepgram_transcriber.py: speech is is not final - putting in output queue temp {buffer} ")
                         self.output_queue.put_nowait(
                             Transcription(
                                 message=buffer,

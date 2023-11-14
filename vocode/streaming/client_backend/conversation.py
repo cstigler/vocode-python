@@ -11,6 +11,7 @@ from vocode.streaming.models.synthesizer import AzureSynthesizerConfig
 from vocode.streaming.models.transcriber import (
     DeepgramTranscriberConfig,
     PunctuationEndpointingConfig,
+    TimeEndpointingConfig
 )
 from vocode.streaming.models.websocket import (
     AudioConfigStartMessage,
@@ -131,16 +132,20 @@ class ConversationRouter(BaseRouter):
             message: WebSocketMessage = WebSocketMessage.parse_obj(
                 await websocket.receive_json()
             )
+            self.logger.debug(
+                f"Conversation.py:  {message.type} message received in websocket ")
             if message.type == WebSocketMessageType.STOP:
                 break
             elif message.type == WebSocketMessageType.SPEAKING_SIGNAL_CHANGE:
                 speaking_signal = typing.cast(SpeakingSignalMessage, message)
                 self.logger.debug(
-                    f"SPEAKING SIGNAL CHANGE RECEIVED AS {speaking_signal.is_active} \n")
+                    f"Conversationpy: speaking signal received as {speaking_signal.is_active}")
                 conversation.speaking_signal_active = speaking_signal.is_active
                 self.logger.debug(
-                    f"Conversation.py: Conversation.speaking_signal_active set to {conversation.speaking_signal_active} \n")
+                    f"Conversation.py: Conversation.speaking_signal_active set to {conversation.speaking_signal_active}")
             else:
+                self.logger.debug(
+                    "Conversation.py: audio message received in websocket")
                 audio_message = typing.cast(AudioMessage, message)
                 conversation.receive_audio(audio_message.get_bytes())
         output_device.mark_closed()
