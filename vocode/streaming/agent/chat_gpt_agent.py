@@ -54,11 +54,28 @@ class ChatGPTAgent(RespondAgent[ChatGPTAgentConfig]):
             else None
         )
         self.is_first_response = True
+        self._speaking_signal_is_active = False
 
         if self.agent_config.vector_db_config:
             self.vector_db = vector_db_factory.create_vector_db(
                 self.agent_config.vector_db_config
             )
+
+    @property
+    def speaking_signal_is_active(self):
+        return self._speaking_signal_is_active
+
+    @speaking_signal_is_active.setter
+    def speaking_signal_is_active(self, value):
+        self.logger.debug(
+            f"chat_gpt_agent.py: speaking_signal_active is set to {value}")
+        if not isinstance(value, bool):
+            raise ValueError("speaking_signal_active must be a boolean")
+        self._speaking_signal_is_active = value
+        if self._speaking_signal_is_active == True and value == False: 
+            # send something that flushes output to final 
+            pass
+
 
     def get_functions(self):
         assert self.agent_config.actions

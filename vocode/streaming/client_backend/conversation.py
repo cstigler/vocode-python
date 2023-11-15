@@ -132,8 +132,6 @@ class ConversationRouter(BaseRouter):
             message: WebSocketMessage = WebSocketMessage.parse_obj(
                 await websocket.receive_json()
             )
-            self.logger.debug(
-                f"Conversation.py:  {message.type} message received in websocket ")
             if message.type == WebSocketMessageType.STOP:
                 break
             elif message.type == WebSocketMessageType.SPEAKING_SIGNAL_CHANGE:
