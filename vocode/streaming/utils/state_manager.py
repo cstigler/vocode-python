@@ -32,9 +32,11 @@ class ConversationStateManager:
         self._conversation.synthesis_enabled = True
 
     def make_agent_wait(self):
+        self._conversation.logger.debug("state_manager.py: make agent wait called")
         self._conversation.agent.is_waiting = True
 
     def resume_agent(self):
+        self._conversation.logger.debug("state_manager.py: resuming agent")
         self._conversation.agent.is_waiting = False
 
 

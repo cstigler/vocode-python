@@ -153,6 +153,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
                         twilio_sid=getattr(self.conversation, "twilio_sid", None),
                     )
                 )
+                self.conversation.logger.debug(f"streaming_convo.py: Transcriptionsworker putting {transcription} in agent input")
                 self.output_queue.put_nowait(event)
 
     class FillerAudioWorker(InterruptibleAgentResponseWorker):
@@ -477,12 +478,13 @@ class StreamingConversation(Generic[OutputDeviceType]):
             self._speaking_signal_is_active = value
             return
         previous_signal = self._speaking_signal_is_active
+        self.logger.debug(f"streaming_conversation.py: previous_signal {previous_signal} and new value {value}")
         self._speaking_signal_is_active = value
         if self.agent: 
-            if previous_signal and value: 
+            if not previous_signal and value: 
                 self.logger.debug(f"streaming_conversation.py: agent is waiting")
                 self.state_manager.make_agent_wait()
-            elif previous_signal and value:
+            elif previous_signal and not value:
                 self.logger.debug(f"streaming_conversation.py: agent is resuming")
                 self.state_manager.resume_agent()
 

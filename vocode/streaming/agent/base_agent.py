@@ -262,6 +262,7 @@ class RespondAgent(BaseAgent[AgentConfigType]):
         return False
 
     async def process(self, item: InterruptibleEvent[AgentInput]):
+        self.logger.debug(f"base_agent.py: processing {item}")
         if self.is_waiting:
             self.logger.debug("Agent is waiting, skipping processing")
             return

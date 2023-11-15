@@ -93,7 +93,8 @@ class ConversationRouter(BaseRouter):
         start_message: AudioConfigStartMessage,
     ) -> StreamingConversation:
         transcriber = self.transcriber_thunk(
-            start_message.input_audio_config, self.logger)
+            input_audio_config = start_message.input_audio_config, 
+            logger = self.logger)
         synthesizer = self.synthesizer_thunk(start_message.output_audio_config)
         synthesizer.synthesizer_config.should_encode_as_wav = True
 
@@ -137,13 +138,11 @@ class ConversationRouter(BaseRouter):
             elif message.type == WebSocketMessageType.SPEAKING_SIGNAL_CHANGE:
                 speaking_signal = typing.cast(SpeakingSignalMessage, message)
                 self.logger.debug(
-                    f"Conversationpy: speaking signal received as {speaking_signal.is_active}")
+                    f"Conversation.py: speaking signal received as {speaking_signal.is_active}")
                 conversation.speaking_signal_active = speaking_signal.is_active
                 self.logger.debug(
                     f"Conversation.py: Conversation.speaking_signal_active set to {conversation.speaking_signal_active}")
             else:
-                self.logger.debug(
-                    "Conversation.py: audio message received in websocket")
                 audio_message = typing.cast(AudioMessage, message)
                 conversation.receive_audio(audio_message.get_bytes())
         output_device.mark_closed()
