@@ -65,6 +65,7 @@ class ConversationRouter(BaseRouter):
             transcriber_config=DeepgramTranscriberConfig.from_input_audio_config(
                 input_audio_config=input_audio_config,
                 endpointing_config=PunctuationEndpointingConfig(),
+                mute_during_speech = True,
             ),
             logger=logger
         ),

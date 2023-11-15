@@ -54,7 +54,6 @@ class ChatGPTAgent(RespondAgent[ChatGPTAgentConfig]):
             else None
         )
         self.is_first_response = True
-        self._speaking_signal_is_active = False
 
         if self.agent_config.vector_db_config:
             self.vector_db = vector_db_factory.create_vector_db(

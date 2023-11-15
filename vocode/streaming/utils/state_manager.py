@@ -39,7 +39,6 @@ class ConversationStateManager:
         self._conversation.logger.debug("state_manager.py: resuming agent")
         self._conversation.agent.is_waiting = False
 
-
     async def terminate_conversation(self):
         await self._conversation.terminate()
 
