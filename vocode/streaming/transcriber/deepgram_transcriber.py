@@ -223,6 +223,7 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
 
                     is_final = data["is_final"]
                     speech_final = self.is_speech_final(buffer, data, time_silent)
+                    self.logger.debug(f"DeepgramTranscriber.py checking speech final: {speech_final}")
                     top_choice = data["channel"]["alternatives"][0]
                     confidence = top_choice["confidence"]
 
@@ -238,6 +239,7 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                         num_buffer_utterances += 1
 
                     if speech_final:
+                        self.logger.debug(f"DeepgramTranscriber.py is final output queue {buffer}")
                         self.output_queue.put_nowait(
                             Transcription(
                                 message=buffer,
@@ -250,6 +252,7 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                         num_buffer_utterances = 1
                         time_silent = 0
                     elif top_choice["transcript"] and confidence > 0.0:
+                        self.logger.debug(f"DeepgramTranscriber.py is NOT final output queue {buffer}")
                         self.output_queue.put_nowait(
                             Transcription(
                                 message=buffer,

@@ -31,6 +31,12 @@ class ConversationStateManager:
     def enable_synthesis(self):
         self._conversation.synthesis_enabled = True
 
+    def mute_agent(self):
+        self._conversation.agent.is_muted = True
+
+    def unmute_agent(self):
+        self._conversation.agent.is_muted = False
+
     async def terminate_conversation(self):
         await self._conversation.terminate()
 
