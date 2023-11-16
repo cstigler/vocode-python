@@ -12,3 +12,4 @@ private.key
 dump.rdb
 dev-env/
 .vscode/
+.idea/

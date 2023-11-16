@@ -67,6 +67,7 @@ class BaseAsyncTranscriber(AbstractTranscriber[TranscriberConfigType], AsyncWork
 
     def send_audio(self, chunk):
         if not self.is_muted:
+            self.logger.debug("base async transcriber consuming audio")
             self.consume_nonblocking(chunk)
         else:
             self.consume_nonblocking(self.create_silent_chunk(len(chunk)))

@@ -62,6 +62,15 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
         self.is_ready = False
         self.logger = logger or logging.getLogger(__name__)
         self.audio_cursor = 0.0
+        self._speaking_signal_is_active = False
+    
+    @property
+    def speaking_signal_is_active(self):
+        return self._speaking_signal_is_active
+
+    @speaking_signal_is_active.setter
+    def speaking_signal_is_active(self, value):
+        self._speaking_signal_is_active = value
 
     async def _run_loop(self):
         restarts = 0
@@ -178,9 +187,11 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
             async def sender(ws: WebSocketClientProtocol):  # sends audio to websocket
                 while not self._ended:
                     try:
-                        data = await asyncio.wait_for(self.input_queue.get(), 5)
+                        data = await asyncio.wait_for(self.input_queue.get(), 10)
                     except asyncio.exceptions.TimeoutError:
-                        break
+                        keep_alive_data = json.dumps({"type": "KeepAlive"})
+                        await ws.send(keep_alive_data)
+                        continue
                     num_channels = 1
                     sample_width = 2
                     self.audio_cursor += len(data) / (
@@ -188,6 +199,7 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                         * num_channels
                         * sample_width
                     )
+                    self.logger.debug(f"Sending to deepgram some data")
                     await ws.send(data)
                 self.logger.debug("Terminating Deepgram transcriber sender")
 
@@ -204,6 +216,7 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                         self.logger.debug(f"Got error {e} in Deepgram receiver")
                         break
                     data = json.loads(msg)
+                    self.logger.debug(f"deepgram transcriber receiving back data")
                     if (
                         not "is_final" in data
                     ):  # means we've finished receiving transcriptions
@@ -222,9 +235,13 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                     min_latency_hist.record(max(cur_min_latency, 0))
 
                     is_final = data["is_final"]
-                    speech_final = self.is_speech_final(buffer, data, time_silent)
-                    self.logger.debug(f"DeepgramTranscriber.py checking speech final: {speech_final}")
+
+                    # speech is final if deepgram determins it's final or if the human has released the speaking signal
+                    speech_final = self.is_speech_final(buffer, data, time_silent) or not self.speaking_signal_is_active
+                    
                     top_choice = data["channel"]["alternatives"][0]
+                    self.logger.debug(f"DeepgramTranscriber.py checking speech final: {speech_final} and data is {top_choice['transcript']}")
+
                     confidence = top_choice["confidence"]
 
                     if top_choice["transcript"] and confidence > 0.0 and is_final:

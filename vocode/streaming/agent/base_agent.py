@@ -266,7 +266,6 @@ class RespondAgent(BaseAgent[AgentConfigType]):
             self.logger.debug("Agent is muted, skipping processing")
             return
         
-        self.logger.debug(f"base_agent.py: agent not muted, is processing {item.payload.get_type}")
         assert self.transcript is not None
         try:
             agent_input = item.payload

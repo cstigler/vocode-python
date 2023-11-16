@@ -156,7 +156,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
                         twilio_sid=getattr(self.conversation, "twilio_sid", None),
                     )
                 )
-                self.conversation.logger.debug(f"streaming_convo.py: Transcriptionsworker putting {transcription} in agent input")
+                # self.conversation.logger.debug(f"streaming_convo.py: Transcriptionsworker putting {transcription} in agent input")
                 self.output_queue.put_nowait(event)
 
     class FillerAudioWorker(InterruptibleAgentResponseWorker):
@@ -332,8 +332,10 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 try:
                     # catch up on items missed while in pause, discard the responses created when the human is still midway through speaking
                     current_time = time.time()
-                    if self.conversation.speaking_signal_is_active or current_time < self.conversation.latest_human_speech_timestamp:
-                        self.conversation.logger.debug(f"Discarding agent message before synthesis beacuse human has not finished speaking: speaking_signal {self.conversation.speaking_signal_is_active} or current time less than latest human speech {current_time < self.conversation.latest_human_speech_timestamp}")
+                    is_before_human_finished_speaking = current_time < self.conversation.latest_human_speech_timestamp
+                    self.conversation.logger.debug(f"SynthesisResultsWorker: checking if speaking signal active {self.conversation.speaking_signal_is_active} or {is_before_human_finished_speaking}")
+                    if self.conversation.speaking_signal_is_active or is_before_human_finished_speaking:
+                        self.conversation.logger.debug(f"SynthesisResultsWorker: Discarding agent message before synthesis beacuse human has not finished speaking: speaking_signal {self.conversation.speaking_signal_is_active} or current time less than latest human speech {current_time < self.conversation.latest_human_speech_timestamp}")
                         return 
                 
                     message, synthesis_result = item.payload
@@ -499,8 +501,8 @@ class StreamingConversation(Generic[OutputDeviceType]):
             self._speaking_signal_is_active = value
             return
         previous_signal = self._speaking_signal_is_active
-        self.logger.debug(f"streaming_conversation.py: previous_signal {previous_signal} and new value {value}")
         self._speaking_signal_is_active = value
+        self.transcriber.speaking_signal_is_active = value
         if not previous_signal and value: 
             self.logger.debug(f"streaming_conversation.py: synthesisworker is pausing")
             self.synthesis_results_worker.pause_work()
