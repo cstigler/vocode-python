@@ -332,8 +332,8 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 try:
                     # catch up on items missed while in pause, discard the responses created when the human is still midway through speaking
                     current_time = time.time()
-                    if self.conversation.speaking_signal_active or current_time < self.conversation.latest_human_speech_timestamp:
-                        self.conversation.logger.debug(f"Discarding agent message before synthesis beacuse human has not finished speaking: speaking_signal {self.conversation.speaking_signal_active} or current time less than latest human speech {current_time < self.conversation.latest_human_speech_timestamp}")
+                    if self.conversation.speaking_signal_is_active or current_time < self.conversation.latest_human_speech_timestamp:
+                        self.conversation.logger.debug(f"Discarding agent message before synthesis beacuse human has not finished speaking: speaking_signal {self.conversation.speaking_signal_is_active} or current time less than latest human speech {current_time < self.conversation.latest_human_speech_timestamp}")
                         return 
                 
                     message, synthesis_result = item.payload
@@ -379,6 +379,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
                                 await self.conversation.terminate()
                         except asyncio.TimeoutError:
                             pass
+                    break
                 except asyncio.CancelledError:
                     pass
         
@@ -493,7 +494,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
         return self._speaking_signal_is_active
 
     @speaking_signal_is_active.setter
-    def speaking_signal_active(self, value):
+    def speaking_signal_is_active(self, value):
         if self._speaking_signal_is_active == None:
             self._speaking_signal_is_active = value
             return
@@ -506,6 +507,10 @@ class StreamingConversation(Generic[OutputDeviceType]):
         elif previous_signal and not value:
             self.logger.debug(f"streaming_conversation.py: synthesisworker is resuming")
             self.synthesis_results_worker.resume_work()
+        
+    @speaking_signal_is_active.getter
+    def speaking_signal_is_active(self):
+        return self._speaking_signal_is_active
 
 
     def create_state_manager(self) -> ConversationStateManager:

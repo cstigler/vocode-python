@@ -167,7 +167,6 @@ class BaseAgent(AbstractAgent[AgentConfigType], InterruptibleWorker):
         self.transcript: Optional[Transcript] = None
 
         self.functions = self.get_functions() if self.agent_config.actions else None
-        self.is_waiting = False
 
     def get_functions(self):
         raise NotImplementedError
@@ -262,10 +261,7 @@ class RespondAgent(BaseAgent[AgentConfigType]):
         return False
 
     async def process(self, item: InterruptibleEvent[AgentInput]):
-        self.logger.debug(f"base_agent.py: processing {item}")
-        if self.is_waiting:
-            self.logger.debug("Agent is waiting, skipping processing")
-            return
+        self.logger.debug(f"base_agent.py: processing {item.payload.get_type}")
         assert self.transcript is not None
         try:
             agent_input = item.payload
