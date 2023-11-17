@@ -3,7 +3,7 @@ from typing import Callable, Optional
 import typing
 
 from dataclasses import dataclass
-from fastapi import APIRouter, WebSocket
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from vocode.streaming.agent.base_agent import BaseAgent
 from vocode.streaming.models.audio_encoding import AudioEncoding
 from vocode.streaming.models.client_backend import InputAudioConfig, OutputAudioConfig
@@ -48,10 +48,10 @@ class ConversationParams:
     def get_conversation_params(websocket):
         query_params = websocket.query_params
         return ConversationParams(
-            human_name=query_params.get('humanName'),
-            agent_name=query_params.get('agentName'),
-            company_name=query_params.get('companyName'),
-            situation=query_params.get('situation')
+            human_name=query_params.get("humanName"),
+            agent_name=query_params.get("agentName"),
+            company_name=query_params.get("companyName"),
+            situation=query_params.get("situation"),
         )
 
 
@@ -99,8 +99,7 @@ class ConversationRouter(BaseRouter):
         synthesizer = self.synthesizer_thunk(start_message.output_audio_config)
         synthesizer.synthesizer_config.should_encode_as_wav = True
 
-        conversation_params = ConversationParams.get_conversation_params(
-            websocket)
+        conversation_params = ConversationParams.get_conversation_params(websocket)
 
         self.logger.debug(conversation_params)
 
@@ -117,37 +116,40 @@ class ConversationRouter(BaseRouter):
         )
 
     async def conversation(self, websocket: WebSocket):
-        await websocket.accept()
-        start_message: AudioConfigStartMessage = AudioConfigStartMessage.parse_obj(
-            await websocket.receive_json()
-        )
-        self.logger.debug(f"Conversation started")
-        output_device = WebsocketOutputDevice(
-            websocket,
-            start_message.output_audio_config.sampling_rate,
-            start_message.output_audio_config.audio_encoding,
-        )
-        conversation = self.get_conversation(
-            websocket, output_device, start_message)
-        await conversation.start(lambda: websocket.send_text(ReadyMessage().json()))
-        while conversation.is_active():
-            message: WebSocketMessage = WebSocketMessage.parse_obj(
+        try:
+            await websocket.accept()
+            start_message: AudioConfigStartMessage = AudioConfigStartMessage.parse_obj(
                 await websocket.receive_json()
             )
-            if message.type == WebSocketMessageType.STOP:
-                break
-            elif message.type == WebSocketMessageType.SPEAKING_SIGNAL_CHANGE:
-                speaking_signal = typing.cast(SpeakingSignalMessage, message)
-                self.logger.debug(
-                    f"Conversation.py: speaking signal received as {speaking_signal.is_active}")
-                conversation.speaking_signal_is_active = speaking_signal.is_active
-                self.logger.debug(
+            self.logger.debug(f"Conversation started")
+
+            output_device = WebsocketOutputDevice(
+                websocket,
+                start_message.output_audio_config.sampling_rate,
+                start_message.output_audio_config.audio_encoding,
+            )
+            conversation = self.get_conversation(
+                websocket, output_device, start_message
+            )
+            await conversation.start(lambda: websocket.send_text(ReadyMessage().json()))
+            while conversation.is_active():
+                message: WebSocketMessage = WebSocketMessage.parse_obj(
+                    await websocket.receive_json()
+                )
+                if message.type == WebSocketMessageType.STOP:
+                    break
+                elif message.type == WebSocketMessageType.SPEAKING_SIGNAL_CHANGE:
+                    speaking_signal = typing.cast(SpeakingSignalMessage, message)
+                    conversation.speaking_signal_is_active = speaking_signal.is_active
+                    self.logger.debug(
                     f"Conversation.py: Conversation.speaking_signal_is_active set to {conversation.speaking_signal_is_active}")
-            else:
-                audio_message = typing.cast(AudioMessage, message)
-                conversation.receive_audio(audio_message.get_bytes())
-        output_device.mark_closed()
-        await conversation.terminate()
+                else:
+                    audio_message = typing.cast(AudioMessage, message)
+                    conversation.receive_audio(audio_message.get_bytes())
+            output_device.mark_closed()
+            await conversation.terminate()
+        except WebSocketDisconnect:
+            self.logger.info("WebSocket connection closed by client")
 
     def get_router(self) -> APIRouter:
         return self.router
