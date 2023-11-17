@@ -3,7 +3,7 @@ from typing import Callable, Optional
 import typing
 
 from dataclasses import dataclass
-from fastapi import APIRouter, WebSocket
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from vocode.streaming.agent.base_agent import BaseAgent
 from vocode.streaming.models.audio_encoding import AudioEncoding
 from vocode.streaming.models.client_backend import InputAudioConfig, OutputAudioConfig
@@ -136,7 +136,7 @@ class ConversationRouter(BaseRouter):
                 conversation.receive_audio(audio_message.get_bytes())
             output_device.mark_closed()
             await conversation.terminate()
-        except starlette.websockets.WebSocketDisconnect:
+        except WebSocketDisconnect:
             self.logger.info("WebSocket connection closed by client")
 
     def get_router(self) -> APIRouter:
