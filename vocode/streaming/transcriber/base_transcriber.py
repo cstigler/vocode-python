@@ -14,6 +14,7 @@ from vocode.streaming.utils.worker import AsyncWorker, ThreadAsyncWorker
 tracer = trace.get_tracer(__name__)
 meter = metrics.get_meter(__name__)
 
+
 class Transcription(BaseModel):
     message: str
     confidence: float
@@ -69,6 +70,7 @@ class BaseAsyncTranscriber(AbstractTranscriber[TranscriberConfigType], AsyncWork
         if not self.is_muted:
             self.consume_nonblocking(chunk)
         else:
+            self.logger.debug(f"BaseAsyncTranscriber not send_audio because muted")
             self.consume_nonblocking(self.create_silent_chunk(len(chunk)))
 
     def terminate(self):
@@ -94,6 +96,9 @@ class BaseThreadAsyncTranscriber(
         if not self.is_muted:
             self.consume_nonblocking(chunk)
         else:
+            self.logger.debug(
+                f"BaseThreadAsyncTranscriber not send_audio because muted"
+            )
             self.consume_nonblocking(self.create_silent_chunk(len(chunk)))
 
     def terminate(self):

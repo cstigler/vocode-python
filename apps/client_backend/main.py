@@ -19,9 +19,10 @@ load_dotenv()
 
 app = FastAPI(docs_url=None)
 
-logging.basicConfig()
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+logging.getLogger("websockets.client").setLevel(logging.INFO)
 
 
 def agent_thunk_with_convo_params(conversation_params):
