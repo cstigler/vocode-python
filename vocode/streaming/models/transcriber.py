@@ -44,7 +44,7 @@ class TimeEndpointingConfig(EndpointingConfig, type=EndpointingType.TIME_BASED):
 class PunctuationEndpointingConfig(
     EndpointingConfig, type=EndpointingType.PUNCTUATION_BASED
 ):
-    time_cutoff_seconds: float = 0.4
+    time_cutoff_seconds: float = 0.01
 
 
 class TranscriberConfig(TypedModel, type=TranscriberType.BASE.value):
@@ -105,7 +105,7 @@ class TranscriberConfig(TypedModel, type=TranscriberType.BASE.value):
 
 class DeepgramTranscriberConfig(TranscriberConfig, type=TranscriberType.DEEPGRAM.value):
     language: Optional[str] = None
-    model: Optional[str] = "nova"
+    model: Optional[str] = "nova-2-conversationalai"
     tier: Optional[str] = None
     version: Optional[str] = None
     keywords: Optional[list] = None

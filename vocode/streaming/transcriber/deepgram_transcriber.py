@@ -199,7 +199,7 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                         * num_channels
                         * sample_width
                     )
-                    self.logger.debug(f"Sending to deepgram some data")
+                    # self.logger.debug(f"Sending to deepgram some data")
                     await ws.send(data)
                 self.logger.debug("Terminating Deepgram transcriber sender")
 
@@ -216,7 +216,12 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                         self.logger.debug(f"Got error {e} in Deepgram receiver")
                         break
                     data = json.loads(msg)
-                    self.logger.debug(f"deepgram transcriber receiving back data")
+
+                    is_final = data["is_final"]
+                    temp_transcript = data["channel"]["alternatives"][0]['transcript']
+                    duration = data["duration"]
+                    start_time = data["start"]
+                    self.logger.debug(f"deepgram transcriber receiving back: starting at {start_time} for duration {duration} is_final {is_final} and temp_transcript {temp_transcript}")
                     if (
                         not "is_final" in data
                     ):  # means we've finished receiving transcriptions
@@ -237,8 +242,7 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                     is_final = data["is_final"]
 
                     # speech is final if deepgram determins it's final or if the human has released the speaking signal
-                    speech_final = self.is_speech_final(buffer, data, time_silent) or not self.speaking_signal_is_active
-                    
+                    speech_final = self.is_speech_final(buffer, data, time_silent)
                     top_choice = data["channel"]["alternatives"][0]
                     self.logger.debug(f"DeepgramTranscriber.py checking speech final: {speech_final} and data is {top_choice['transcript']}")
 

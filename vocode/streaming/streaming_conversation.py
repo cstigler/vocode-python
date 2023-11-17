@@ -149,12 +149,13 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 self.conversation.logger.debug(f"streaming_convo.py: marked latest human speech timestamp for {transcription.message}")
                 # we use getattr here to avoid the dependency cycle between VonageCall and StreamingConversation
                 event = self.interruptible_event_factory.create_interruptible_event(
-                    TranscriptionAgentInput(
+                    payload = TranscriptionAgentInput(
                         transcription=transcription,
                         conversation_id=self.conversation.id,
                         vonage_uuid=getattr(self.conversation, "vonage_uuid", None),
                         twilio_sid=getattr(self.conversation, "twilio_sid", None),
-                    )
+                    ),
+                    is_interruptible=False
                 )
                 # self.conversation.logger.debug(f"streaming_convo.py: Transcriptionsworker putting {transcription} in agent input")
                 self.output_queue.put_nowait(event)
@@ -333,7 +334,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
                     # catch up on items missed while in pause, discard the responses created when the human is still midway through speaking
                     current_time = time.time()
                     is_before_human_finished_speaking = current_time < self.conversation.latest_human_speech_timestamp
-                    self.conversation.logger.debug(f"SynthesisResultsWorker: checking if speaking signal active {self.conversation.speaking_signal_is_active} or {is_before_human_finished_speaking}")
+                    self.conversation.logger.debug(f"SynthesisResultsWorker: checking if speaking signal active {self.conversation.speaking_signal_is_active} or is before human finished speaking {is_before_human_finished_speaking}")
                     if self.conversation.speaking_signal_is_active or is_before_human_finished_speaking:
                         self.conversation.logger.debug(f"SynthesisResultsWorker: Discarding agent message before synthesis beacuse human has not finished speaking: speaking_signal {self.conversation.speaking_signal_is_active} or current time less than latest human speech {current_time < self.conversation.latest_human_speech_timestamp}")
                         return 
