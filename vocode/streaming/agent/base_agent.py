@@ -5,6 +5,7 @@ from enum import Enum
 import json
 import logging
 import random
+import time
 from typing import (
     AsyncGenerator,
     Generator,
@@ -15,6 +16,7 @@ from typing import (
     Union,
     TYPE_CHECKING,
 )
+import time
 import typing
 from opentelemetry import trace
 from opentelemetry.trace import Span
@@ -96,6 +98,7 @@ class AgentResponse(TypedModel, type=AgentResponseType.BASE.value):
 class AgentResponseMessage(AgentResponse, type=AgentResponseType.MESSAGE.value):
     message: BaseMessage
     is_interruptible: bool = True
+    last_context_timestamp: Optional[float]
 
 
 class AgentResponseStop(AgentResponse, type=AgentResponseType.STOP.value):
@@ -200,7 +203,7 @@ class BaseAgent(AbstractAgent[AgentConfigType], InterruptibleWorker):
 
 class RespondAgent(BaseAgent[AgentConfigType]):
     async def handle_generate_response(
-        self, transcription: Transcription, agent_input: AgentInput
+        self, transcription: Transcription, agent_input: AgentInput, last_context_timestamp: Optional[float]
     ) -> bool:
         conversation_id = agent_input.conversation_id
         tracer_name_start = await self.get_tracer_name_start()
@@ -225,7 +228,8 @@ class RespondAgent(BaseAgent[AgentConfigType]):
                 agent_span_first.end()
                 is_first_response = False
             self.produce_interruptible_agent_response_event_nonblocking(
-                AgentResponseMessage(message=BaseMessage(text=response)),
+                AgentResponseMessage(message=BaseMessage(text=response), 
+                last_context_timestamp = last_context_timestamp),
                 is_interruptible=self.agent_config.allow_agent_to_be_cut_off
                 and is_interruptible,
                 agent_response_tracker=agent_input.agent_response_tracker,
@@ -237,7 +241,7 @@ class RespondAgent(BaseAgent[AgentConfigType]):
         return False
 
     async def handle_respond(
-        self, transcription: Transcription, conversation_id: str
+        self, transcription: Transcription, conversation_id: str, last_context_timestamp: Optional[float]
     ) -> bool:
         try:
             tracer_name_start = await self.get_tracer_name_start()
@@ -253,7 +257,7 @@ class RespondAgent(BaseAgent[AgentConfigType]):
             return True
         if response:
             self.produce_interruptible_agent_response_event_nonblocking(
-                AgentResponseMessage(message=BaseMessage(text=response)),
+                AgentResponseMessage(message=BaseMessage(text=response),last_context_timestamp = last_context_timestamp),
                 is_interruptible=self.agent_config.allow_agent_to_be_cut_off,
             )
             return should_stop
@@ -305,14 +309,15 @@ class RespondAgent(BaseAgent[AgentConfigType]):
                     AgentResponseFillerAudio()
                 )
             self.logger.debug("Responding to transcription")
+
             should_stop = False
             if self.agent_config.generate_responses:
                 should_stop = await self.handle_generate_response(
-                    transcription, agent_input
+                    transcription, agent_input, transcription.last_context_timestamp
                 )
             else:
                 should_stop = await self.handle_respond(
-                    transcription, agent_input.conversation_id
+                    transcription, agent_input.conversation_id, transcription.last_context_timestamp
                 )
 
             if should_stop:

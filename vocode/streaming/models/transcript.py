@@ -105,6 +105,7 @@ class Transcript(BaseModel):
             )
 
     def add_human_message(self, text: str, conversation_id: str):
+        # TODO JN check if any of these events get screwed up or need to be removed from the transcript object
         self.add_message_from_props(
             text=text,
             sender=Sender.HUMAN,

@@ -20,6 +20,7 @@ from vocode.streaming.models.transcriber import (
     TimeEndpointingConfig,
 )
 from vocode.streaming.models.audio_encoding import AudioEncoding
+from websockets.exceptions import ConnectionClosedError 
 
 
 PUNCTUATION_TERMINATORS = [".", "!", "?"]
@@ -178,10 +179,9 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
             while not self._ended:
                 try:
                     data = await asyncio.wait_for(self.input_queue.get(), 5)
-                except asyncio.exceptions.TimeoutError:
-                    keep_alive_data = json.dumps({"type": "KeepAlive"})
-                    await deepgramLive.send(keep_alive_data)
-                    continue
+                except asyncio.exceptions.TimeoutError as e:
+                    self.logger.error(f"Transcriber timeout error: {e}")
+                    break
                 num_channels = 1
                 sample_width = 2
                 self.audio_cursor += len(data) / (
@@ -246,7 +246,7 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
             duration = data["duration"]
             start_time = data["start"]
             self.logger.debug(
-                f"Current Transcript: {current_transcript}, Time Silent: {time_silent}, Speech Final: {speech_final}, Is Final: {is_final} for {start_time} and duration {duration}"
+                f"Current Transcript: {current_transcript}, Time Silent: {time_silent}, Speech Final: {speech_final}, Is Final: {is_final} for Start Time: {start_time} and Duration {duration}"
             )
 
             if is_final:
@@ -265,4 +265,4 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                 )
                 self.transcript_buffer = ""  # reset the buffer
         else:
-            self.logger.debug(f"No transcript with any confidence, discarding!")
+            self.logger.debug(f"No transcript with any confidence, discarding!")            

@@ -131,7 +131,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
             if (
                 not self.conversation.is_human_speaking
                 and self.conversation.is_interrupt(transcription)
-            ):
+            ): # human has started speaking and interrupted the agent
                 self.conversation.current_transcription_is_interrupt = (
                     self.conversation.broadcast_interrupt()
                 )
@@ -142,11 +142,15 @@ class StreamingConversation(Generic[OutputDeviceType]):
             transcription.is_interrupt = (
                 self.conversation.current_transcription_is_interrupt
             )
-            self.conversation.is_human_speaking = not transcription.is_final
-            if transcription.is_final:
-                # TODO JN: this is the right place to mark as latest speech right? another place would be when the gpt agent processes this transcription event
-                self.conversation.mark_latest_human_speech_timestamp()
-                self.conversation.logger.debug(f"streaming_convo.py: marked latest human speech timestamp for {transcription.message}")
+            self.conversation.is_human_speaking = self.conversation.speaking_signal_is_active
+            self.conversation.logger.debug(f"Human started speaking because speaking signal is set")
+
+            if transcription.is_final:  
+                self.conversation.logger.debug(f"TranscriptionsWorker: marking context timestamp for transcript {transcription.message}")
+                current_time = time.time()
+                transcription.last_context_timestamp = current_time
+                self.conversation.latest_transcript_context = current_time
+
                 # we use getattr here to avoid the dependency cycle between VonageCall and StreamingConversation
                 event = self.interruptible_event_factory.create_interruptible_event(
                     payload = TranscriptionAgentInput(
@@ -157,7 +161,6 @@ class StreamingConversation(Generic[OutputDeviceType]):
                     ),
                     is_interruptible=False
                 )
-                # self.conversation.logger.debug(f"streaming_convo.py: Transcriptionsworker putting {transcription} in agent input")
                 self.output_queue.put_nowait(event)
 
     class FillerAudioWorker(InterruptibleAgentResponseWorker):
@@ -246,6 +249,8 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 )
                 * TEXT_TO_SPEECH_CHUNK_SIZE_SECONDS
             )
+            self.is_working = asyncio.Event()
+            self.is_working.set() # Worker starts in the running state
 
         def send_filler_audio(self, agent_response_tracker: Optional[asyncio.Event]):
             assert self.conversation.filler_audio_worker is not None
@@ -269,43 +274,66 @@ class StreamingConversation(Generic[OutputDeviceType]):
         async def process(self, item: InterruptibleAgentResponseEvent[AgentResponse]):
             if not self.conversation.synthesis_enabled:
                 self.conversation.logger.debug(
-                    "Synthesis disabled, not synthesizing speech"
+                "Synthesis disabled, not synthesizing speech"
                 )
                 return
-            try:
-                agent_response = item.payload
-                if isinstance(agent_response, AgentResponseFillerAudio):
-                    self.send_filler_audio(item.agent_response_tracker)
-                    return
-                if isinstance(agent_response, AgentResponseStop):
-                    self.conversation.logger.debug("Agent requested to stop")
-                    item.agent_response_tracker.set()
-                    await self.conversation.terminate()
-                    return
+            
+            while True:
+                await self.is_working.wait()
+                try:
+                    agent_response = item.payload
+                    if isinstance(agent_response, AgentResponseFillerAudio):
+                        self.send_filler_audio(item.agent_response_tracker)
+                        return
+                    if isinstance(agent_response, AgentResponseStop):
+                        self.conversation.logger.debug("Agent requested to stop")
+                        item.agent_response_tracker.set()
+                        await self.conversation.terminate()
+                        return
 
-                agent_response_message = typing.cast(
-                    AgentResponseMessage, agent_response
-                )
+                    agent_response_message = typing.cast(
+                        AgentResponseMessage, agent_response
+                    )
 
-                if self.conversation.filler_audio_worker is not None:
-                    if (
-                        self.conversation.filler_audio_worker.interrupt_current_filler_audio()
-                    ):
-                        await self.conversation.filler_audio_worker.wait_for_filler_audio_to_finish()
+                    # catch up on items missed while in pause, discard the responses created when the human is still midway through speaking
+                    if agent_response_message.last_context_timestamp and self.conversation.latest_transcript_context:
+                        is_before_human_finished_speaking = agent_response_message.last_context_timestamp < self.conversation.latest_transcript_context
 
-                self.conversation.logger.debug("Synthesizing speech for message")
-                synthesis_result = await self.conversation.synthesizer.create_speech(
-                    agent_response_message.message,
-                    self.chunk_size,
-                    bot_sentiment=self.conversation.bot_sentiment,
-                )
-                self.produce_interruptible_agent_response_event_nonblocking(
-                    (agent_response_message.message, synthesis_result),
-                    is_interruptible=item.is_interruptible,
-                    agent_response_tracker=item.agent_response_tracker,
-                )
-            except asyncio.CancelledError:
-                pass
+                        self.conversation.logger.debug(f"AgentResponsesWorker: ******checking if speaking signal active {self.conversation.speaking_signal_is_active} or is before human finished speaking {is_before_human_finished_speaking} because latest transcript context: {self.conversation.latest_transcript_context} and this transcript is from {agent_response_message.last_context_timestamp}")
+
+                        if self.conversation.speaking_signal_is_active or is_before_human_finished_speaking:
+                            self.conversation.logger.debug(f"AgentResponsesWorker: ******Discarding agent message before synthesis beacuse human has not finished speaking")
+                            return 
+
+                    self.conversation.logger.debug(f"AgentResponsesWorker: ******Keeping response {agent_response_message.message}")
+
+                    if self.conversation.filler_audio_worker is not None:
+                        if (
+                            self.conversation.filler_audio_worker.interrupt_current_filler_audio()
+                        ):
+                            await self.conversation.filler_audio_worker.wait_for_filler_audio_to_finish()
+
+                    self.conversation.logger.debug(f"Synthesizing speech for message {agent_response_message.message}")
+                    synthesis_result = await self.conversation.synthesizer.create_speech(
+                        agent_response_message.message,
+                        self.chunk_size,
+                        bot_sentiment=self.conversation.bot_sentiment,
+                    )
+                    self.produce_interruptible_agent_response_event_nonblocking(
+                        (agent_response_message.message, synthesis_result),
+                        is_interruptible=item.is_interruptible,
+                        agent_response_tracker=item.agent_response_tracker,
+                    )
+                    break
+                except asyncio.CancelledError:
+                    pass
+        
+        def pause_work(self):
+            self.is_working.clear()
+        
+        def resume_work(self):
+            self.is_working.set()
+
 
     class SynthesisResultsWorker(InterruptibleAgentResponseWorker):
         """Plays SynthesisResults from the output queue on the output device"""
@@ -321,76 +349,58 @@ class StreamingConversation(Generic[OutputDeviceType]):
             super().__init__(input_queue=input_queue)
             self.input_queue = input_queue
             self.conversation = conversation
-            self.is_working = asyncio.Event()
-            self.is_working.set() # Worker starts in the running state
 
         async def process(
             self,
             item: InterruptibleAgentResponseEvent[Tuple[BaseMessage, SynthesisResult]],
         ):
-            while True:
-                await self.is_working.wait()
-                try:
-                    # catch up on items missed while in pause, discard the responses created when the human is still midway through speaking
-                    current_time = time.time()
-                    is_before_human_finished_speaking = current_time < self.conversation.latest_human_speech_timestamp
-                    self.conversation.logger.debug(f"SynthesisResultsWorker: checking if speaking signal active {self.conversation.speaking_signal_is_active} or is before human finished speaking {is_before_human_finished_speaking}")
-                    if self.conversation.speaking_signal_is_active or is_before_human_finished_speaking:
-                        self.conversation.logger.debug(f"SynthesisResultsWorker: Discarding agent message before synthesis beacuse human has not finished speaking: speaking_signal {self.conversation.speaking_signal_is_active} or current time less than latest human speech {current_time < self.conversation.latest_human_speech_timestamp}")
-                        return 
+            try:
+                message, synthesis_result = item.payload
                 
-                    message, synthesis_result = item.payload
-                    # create an empty transcript message and attach it to the transcript
-                    transcript_message = Message(
-                        text="",
-                        sender=Sender.BOT,
+                # create an empty transcript message and attach it to the transcript
+                transcript_message = Message(
+                    text="",
+                    sender=Sender.BOT,
+                )
+                self.conversation.transcript.add_message(
+                    message=transcript_message,
+                    conversation_id=self.conversation.id,
+                    publish_to_events_manager=False,
+                )
+                message_sent, cut_off = await self.conversation.send_speech_to_output(
+                    message.text,
+                    synthesis_result,
+                    item.interruption_event,
+                    TEXT_TO_SPEECH_CHUNK_SIZE_SECONDS,
+                    transcript_message=transcript_message,
+                )
+                # publish the transcript message now that it includes what was said during send_speech_to_output
+                self.conversation.transcript.maybe_publish_transcript_event_from_message(
+                    message=transcript_message,
+                    conversation_id=self.conversation.id,
+                )
+                item.agent_response_tracker.set()
+                self.conversation.logger.debug("Agent message sent: {}".format(message_sent))
+                if cut_off:
+                    self.conversation.agent.update_last_bot_message_on_cut_off(
+                        message_sent
                     )
-                    self.conversation.transcript.add_message(
-                        message=transcript_message,
-                        conversation_id=self.conversation.id,
-                        publish_to_events_manager=False,
-                    )
-                    message_sent, cut_off = await self.conversation.send_speech_to_output(
-                        message.text,
-                        synthesis_result,
-                        item.interruption_event,
-                        TEXT_TO_SPEECH_CHUNK_SIZE_SECONDS,
-                        transcript_message=transcript_message,
-                    )
-                    # publish the transcript message now that it includes what was said during send_speech_to_output
-                    self.conversation.transcript.maybe_publish_transcript_event_from_message(
-                        message=transcript_message,
-                        conversation_id=self.conversation.id,
-                    )
-                    item.agent_response_tracker.set()
-                    self.conversation.logger.debug("Message sent: {}".format(message_sent))
-                    if cut_off:
-                        self.conversation.agent.update_last_bot_message_on_cut_off(
+                if self.conversation.agent.agent_config.end_conversation_on_goodbye:
+                    goodbye_detected_task = (
+                        self.conversation.agent.create_goodbye_detection_task(
                             message_sent
                         )
-                    if self.conversation.agent.agent_config.end_conversation_on_goodbye:
-                        goodbye_detected_task = (
-                            self.conversation.agent.create_goodbye_detection_task(
-                                message_sent
+                    )
+                    try:
+                        if await asyncio.wait_for(goodbye_detected_task, 0.1):
+                            self.conversation.logger.debug(
+                                "Agent said goodbye, ending call"
                             )
-                        )
-                        try:
-                            if await asyncio.wait_for(goodbye_detected_task, 0.1):
-                                self.conversation.logger.debug(
-                                    "Agent said goodbye, ending call"
-                                )
-                                await self.conversation.terminate()
-                        except asyncio.TimeoutError:
-                            pass
-                    break
-                except asyncio.CancelledError:
-                    pass
-        
-        def pause_work(self):
-            self.is_working.clear()
-        
-        def resume_work(self):
-            self.is_working.set()
+                            await self.conversation.terminate()
+                    except asyncio.TimeoutError:
+                        pass
+            except asyncio.CancelledError:
+                pass
 
     def __init__(
         self,
@@ -481,7 +491,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
         self._speaking_signal_is_active = False
         self.active = False
         self.mark_last_action_timestamp()
-        self.mark_latest_human_speech_timestamp()
+        self.latest_transcript_context = time.time()
 
         self.check_for_idle_task: Optional[asyncio.Task] = None
         self.track_bot_sentiment_task: Optional[asyncio.Task] = None
@@ -505,11 +515,11 @@ class StreamingConversation(Generic[OutputDeviceType]):
         self._speaking_signal_is_active = value
         self.transcriber.speaking_signal_is_active = value
         if not previous_signal and value: 
-            self.logger.debug(f"streaming_conversation.py: synthesisworker is pausing")
-            self.synthesis_results_worker.pause_work()
+            self.logger.debug(f"streaming_conversation.py: agent_response_worker is pausing")
+            self.agent_responses_worker.pause_work()
         elif previous_signal and not value:
-            self.logger.debug(f"streaming_conversation.py: synthesisworker is resuming")
-            self.synthesis_results_worker.resume_work()
+            self.logger.debug(f"streaming_conversation.py: agent_response_worker is resuming")
+            self.agent_responses_worker.resume_work()
         
     @speaking_signal_is_active.getter
     def speaking_signal_is_active(self):
@@ -622,11 +632,6 @@ class StreamingConversation(Generic[OutputDeviceType]):
     def mark_last_action_timestamp(self):
         self.last_action_timestamp = time.time()
     
-    def mark_latest_human_speech_timestamp(self):
-        now = time.time()
-        self.logger.debug(f"Latest human speech time marked at {now}")
-        self.latest_human_speech_timestamp = now
-
     def broadcast_interrupt(self):
         """Stops all inflight events and cancels all workers that are sending output
 
