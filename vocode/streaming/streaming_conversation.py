@@ -143,7 +143,6 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 self.conversation.current_transcription_is_interrupt
             )
             self.conversation.is_human_speaking = self.conversation.speaking_signal_is_active
-            self.conversation.logger.debug(f"Human started speaking because speaking signal is set")
 
             if transcription.is_final:  
                 current_time = time.time()
@@ -299,13 +298,13 @@ class StreamingConversation(Generic[OutputDeviceType]):
                     if agent_response_message.last_context_timestamp and self.conversation.latest_transcript_context:
                         is_before_human_finished_speaking = agent_response_message.last_context_timestamp < self.conversation.latest_transcript_context
 
-                        self.conversation.logger.debug(f"AgentResponsesWorker: ******checking if speaking signal active {self.conversation.speaking_signal_is_active} or is before human finished speaking {is_before_human_finished_speaking} because latest transcript context: {self.conversation.latest_transcript_context} and this transcript is from {agent_response_message.last_context_timestamp}")
+                        self.conversation.logger.debug(f"AgentResponsesWorker: Checking if speaking signal active {self.conversation.speaking_signal_is_active} or is before human finished speaking {is_before_human_finished_speaking} because latest transcript context: {self.conversation.latest_transcript_context} and this transcript is from {agent_response_message.last_context_timestamp}")
 
                         if self.conversation.speaking_signal_is_active or is_before_human_finished_speaking:
-                            self.conversation.logger.debug(f"AgentResponsesWorker: ******Discarding agent message {agent_response_message.message}")
+                            self.conversation.logger.debug(f"AgentResponsesWorker: Discarding agent message {agent_response_message.message}")
                             return 
 
-                    self.conversation.logger.debug(f"AgentResponsesWorker: ******Keeping response {agent_response_message.message}")
+                    self.conversation.logger.debug(f"AgentResponsesWorker: Keeping response {agent_response_message.message}")
 
                     if self.conversation.filler_audio_worker is not None:
                         if (
@@ -356,7 +355,6 @@ class StreamingConversation(Generic[OutputDeviceType]):
         ):
             try:
                 message, synthesis_result = item.payload
-                
                 # create an empty transcript message and attach it to the transcript
                 transcript_message = Message(
                     text="",
@@ -423,9 +421,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
         self.agent = agent
         self.synthesizer = synthesizer
         self.synthesis_enabled = True
-
-        self.interruptible_events: queue.Queue[InterruptibleEvent] = queue.Queue(
-        )
+        self.interruptible_events: queue.Queue[InterruptibleEvent] = queue.Queue()
         self.interruptible_event_factory = self.QueueingInterruptibleEventFactory(
             conversation=self
         )
@@ -515,10 +511,10 @@ class StreamingConversation(Generic[OutputDeviceType]):
         self._speaking_signal_is_active = value
         self.transcriber.speaking_signal_is_active = value
         if not previous_signal and value: 
-            self.logger.debug(f"streaming_conversation.py: agent_response_worker is pausing")
+            self.logger.debug(f"AgentResponseWorker is pausing")
             self.agent_responses_worker.pause_work()
         elif previous_signal and not value:
-            self.logger.debug(f"streaming_conversation.py: agent_response_worker is resuming")
+            self.logger.debug(f"AgentResponseWorker is resuming")
             self.agent_responses_worker.resume_work()
         
     @speaking_signal_is_active.getter

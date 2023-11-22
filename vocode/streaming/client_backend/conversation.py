@@ -141,8 +141,6 @@ class ConversationRouter(BaseRouter):
                 elif message.type == WebSocketMessageType.SPEAKING_SIGNAL_CHANGE:
                     speaking_signal = typing.cast(SpeakingSignalMessage, message)
                     conversation.speaking_signal_is_active = speaking_signal.is_active
-                    self.logger.debug(
-                    f"Conversation.py: Conversation.speaking_signal_is_active set to {conversation.speaking_signal_is_active}")
                 else:
                     audio_message = typing.cast(AudioMessage, message)
                     conversation.receive_audio(audio_message.get_bytes())
