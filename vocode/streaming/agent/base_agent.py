@@ -277,6 +277,7 @@ class RespondAgent(BaseAgent[AgentConfigType]):
                 transcription = typing.cast(
                     TranscriptionAgentInput, agent_input
                 ).transcription
+                self.logger.debug("Agent adding human message to transcript")
                 self.transcript.add_human_message(
                     text=transcription.message,
                     conversation_id=agent_input.conversation_id,

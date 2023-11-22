@@ -146,10 +146,10 @@ class StreamingConversation(Generic[OutputDeviceType]):
             self.conversation.logger.debug(f"Human started speaking because speaking signal is set")
 
             if transcription.is_final:  
-                self.conversation.logger.debug(f"TranscriptionsWorker: marking context timestamp for transcript {transcription.message}")
                 current_time = time.time()
                 transcription.last_context_timestamp = current_time
                 self.conversation.latest_transcript_context = current_time
+                self.conversation.logger.debug(f"TranscriptionsWorker: marking context timestamp for transcript {transcription.message} at time {current_time}")
 
                 # we use getattr here to avoid the dependency cycle between VonageCall and StreamingConversation
                 event = self.interruptible_event_factory.create_interruptible_event(
@@ -302,7 +302,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
                         self.conversation.logger.debug(f"AgentResponsesWorker: ******checking if speaking signal active {self.conversation.speaking_signal_is_active} or is before human finished speaking {is_before_human_finished_speaking} because latest transcript context: {self.conversation.latest_transcript_context} and this transcript is from {agent_response_message.last_context_timestamp}")
 
                         if self.conversation.speaking_signal_is_active or is_before_human_finished_speaking:
-                            self.conversation.logger.debug(f"AgentResponsesWorker: ******Discarding agent message before synthesis beacuse human has not finished speaking")
+                            self.conversation.logger.debug(f"AgentResponsesWorker: ******Discarding agent message {agent_response_message.message}")
                             return 
 
                     self.conversation.logger.debug(f"AgentResponsesWorker: ******Keeping response {agent_response_message.message}")
@@ -596,7 +596,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 self.logger.debug("Conversation idle for too long, terminating")
                 await self.terminate()
                 return
-            await asyncio.sleep(15)
+            await asyncio.sleep(30)
 
     async def track_bot_sentiment(self):
         """Updates self.bot_sentiment every second based on the current transcript"""

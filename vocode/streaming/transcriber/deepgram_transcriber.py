@@ -169,7 +169,7 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
 
         deepgramLive.registerHandler(
             deepgramLive.event.CLOSE,
-            lambda c: self.logger.debug(f"Connection closed with code {c}."),
+            lambda c: self.logger.debug(f"Deepgram connection closed with code {c}."),
         )
         deepgramLive.registerHandler(
             deepgramLive.event.TRANSCRIPT_RECEIVED, self.handle_transcript
@@ -178,9 +178,9 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
         async def sender():  # sends audio to websocket
             while not self._ended:
                 try:
-                    data = await asyncio.wait_for(self.input_queue.get(), 5)
+                    data = await asyncio.wait_for(self.input_queue.get(), 20)
                 except asyncio.exceptions.TimeoutError as e:
-                    self.logger.error(f"Transcriber timeout error: {e}")
+                    self.logger.error(f"Waiting for mic audio task timeout error: {e}")
                     break
                 num_channels = 1
                 sample_width = 2
@@ -194,7 +194,6 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
         await deepgramLive.finish()
 
     def handle_transcript(self, data):
-        self.logger.debug(f"Received transcription data from Deepgram: {data}")
         if not "is_final" in data:  # means we've finished receiving transcriptions
             self.logger.debug(
                 f" --> is_final not present, so we're finished receiving transcriptions"
