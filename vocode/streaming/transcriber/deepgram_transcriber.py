@@ -14,13 +14,10 @@ from vocode.streaming.transcriber.base_transcriber import (
 )
 from vocode.streaming.models.transcriber import (
     DeepgramTranscriberConfig,
-    EndpointingConfig,
-    EndpointingType,
     PunctuationEndpointingConfig,
     TimeEndpointingConfig,
 )
 from vocode.streaming.models.audio_encoding import AudioEncoding
-
 
 PUNCTUATION_TERMINATORS = [".", "!", "?"]
 NUM_RESTARTS = 5
@@ -158,7 +155,7 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
 
         deepgramLive.registerHandler(
             deepgramLive.event.CLOSE,
-            lambda c: self.logger.debug(f"Connection closed with code {c}."),
+            lambda c: self.logger.debug(f"Deepgram connection closed with code {c}."),
         )
         deepgramLive.registerHandler(
             deepgramLive.event.TRANSCRIPT_RECEIVED, self.handle_transcript
@@ -167,8 +164,9 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
         async def sender():  # sends audio to websocket
             while not self._ended:
                 try:
-                    data = await asyncio.wait_for(self.input_queue.get(), 5)
-                except asyncio.exceptions.TimeoutError:
+                    data = await asyncio.wait_for(self.input_queue.get(), 20)
+                except asyncio.exceptions.TimeoutError as e:
+                    self.logger.error(f"Waiting for mic audio task timeout error: {e}")
                     break
                 num_channels = 1
                 sample_width = 2
@@ -182,7 +180,6 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
         await deepgramLive.finish()
 
     def handle_transcript(self, data):
-        self.logger.debug(f"Received transcription data from Deepgram: {data}")
         if not "is_final" in data:  # means we've finished receiving transcriptions
             self.logger.debug(
                 f" --> is_final not present, so we're finished receiving transcriptions"
@@ -231,8 +228,10 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
             time_silent = self.calculate_time_silent(data)
             speech_final = self.is_speech_final(current_transcript, data, time_silent)
 
+            duration = data["duration"]
+            start_time = data["start"]
             self.logger.debug(
-                f"Current Transcript: {current_transcript}, Time Silent: {time_silent}, Speech Final: {speech_final}, Is Final: {is_final}"
+                f"Current Transcript: {current_transcript}, Time Silent: {time_silent}, Speech Final: {speech_final}, Is Final: {is_final} for Start Time: {start_time} and Duration {duration}"
             )
 
             if is_final:
@@ -251,4 +250,4 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
                 )
                 self.transcript_buffer = ""  # reset the buffer
         else:
-            self.logger.debug(f"No transcript with any confidence, discarding!")
+            self.logger.debug(f"No transcript with any confidence, discarding!")            

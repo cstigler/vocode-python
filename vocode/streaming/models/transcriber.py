@@ -44,7 +44,7 @@ class TimeEndpointingConfig(EndpointingConfig, type=EndpointingType.TIME_BASED):
 class PunctuationEndpointingConfig(
     EndpointingConfig, type=EndpointingType.PUNCTUATION_BASED
 ):
-    time_cutoff_seconds: float = 0.4
+    time_cutoff_seconds: float = 0.01
 
 
 class TranscriberConfig(TypedModel, type=TranscriberType.BASE.value):

@@ -36,6 +36,9 @@ class ConversationStateManager:
 
     def unmute_agent(self):
         self._conversation.agent.is_muted = False
+    
+    def save_latest_transcript_context_timestamp(self, timestamp):
+        self._conversation.latest_transcript_context = timestamp
 
     async def terminate_conversation(self):
         await self._conversation.terminate()

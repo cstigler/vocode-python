@@ -11,11 +11,13 @@ from vocode.streaming.models.synthesizer import AzureSynthesizerConfig
 from vocode.streaming.models.transcriber import (
     DeepgramTranscriberConfig,
     PunctuationEndpointingConfig,
+    TimeEndpointingConfig
 )
 from vocode.streaming.models.websocket import (
     AudioConfigStartMessage,
     AudioMessage,
     ReadyMessage,
+    SpeakingSignalMessage,
     WebSocketMessage,
     WebSocketMessageType,
 )
@@ -59,11 +61,13 @@ class ConversationRouter(BaseRouter):
         agent_thunk: Callable[[], BaseAgent],
         transcriber_thunk: Callable[
             [InputAudioConfig], BaseTranscriber
-        ] = lambda input_audio_config: DeepgramTranscriber(
-            DeepgramTranscriberConfig.from_input_audio_config(
+        ] = lambda input_audio_config, logger: DeepgramTranscriber(
+            transcriber_config=DeepgramTranscriberConfig.from_input_audio_config(
                 input_audio_config=input_audio_config,
                 endpointing_config=PunctuationEndpointingConfig(),
-            )
+                # mute_during_speech = True,
+            ),
+            logger=logger
         ),
         synthesizer_thunk: Callable[
             [OutputAudioConfig], BaseSynthesizer
@@ -89,7 +93,9 @@ class ConversationRouter(BaseRouter):
         output_device: WebsocketOutputDevice,
         start_message: AudioConfigStartMessage,
     ) -> StreamingConversation:
-        transcriber = self.transcriber_thunk(start_message.input_audio_config)
+        transcriber = self.transcriber_thunk(
+            input_audio_config = start_message.input_audio_config, 
+            logger = self.logger)
         synthesizer = self.synthesizer_thunk(start_message.output_audio_config)
         synthesizer.synthesizer_config.should_encode_as_wav = True
 
@@ -132,8 +138,12 @@ class ConversationRouter(BaseRouter):
                 )
                 if message.type == WebSocketMessageType.STOP:
                     break
-                audio_message = typing.cast(AudioMessage, message)
-                conversation.receive_audio(audio_message.get_bytes())
+                elif message.type == WebSocketMessageType.SPEAKING_SIGNAL_CHANGE:
+                    speaking_signal = typing.cast(SpeakingSignalMessage, message)
+                    conversation.speaking_signal_is_active = speaking_signal.is_active
+                else:
+                    audio_message = typing.cast(AudioMessage, message)
+                    conversation.receive_audio(audio_message.get_bytes())
             output_device.mark_closed()
             await conversation.terminate()
         except WebSocketDisconnect:

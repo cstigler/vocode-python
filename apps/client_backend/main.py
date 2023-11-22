@@ -44,7 +44,8 @@ def agent_thunk_with_convo_params(conversation_params):
         agent_config=ChatGPTAgentConfig(
             initial_message=BaseMessage(text=initial_message),
             prompt_preamble=prompt_preamble,
-        )
+        ),
+        logger=logger,
     )
 
 

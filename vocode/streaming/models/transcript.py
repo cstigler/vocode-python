@@ -111,6 +111,7 @@ class Transcript(BaseModel):
             conversation_id=conversation_id,
         )
 
+    # TODO Speaksage: can remove, not called anywhere
     def add_bot_message(self, text: str, conversation_id: str):
         self.add_message_from_props(
             text=text,
