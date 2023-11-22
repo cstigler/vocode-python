@@ -509,7 +509,6 @@ class StreamingConversation(Generic[OutputDeviceType]):
             return
         previous_signal = self._speaking_signal_is_active
         self._speaking_signal_is_active = value
-        self.transcriber.speaking_signal_is_active = value
         if not previous_signal and value: 
             self.logger.debug(f"AgentResponseWorker is pausing")
             self.agent_responses_worker.pause_work()

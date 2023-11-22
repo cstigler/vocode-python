@@ -14,14 +14,10 @@ from vocode.streaming.transcriber.base_transcriber import (
 )
 from vocode.streaming.models.transcriber import (
     DeepgramTranscriberConfig,
-    EndpointingConfig,
-    EndpointingType,
     PunctuationEndpointingConfig,
     TimeEndpointingConfig,
 )
 from vocode.streaming.models.audio_encoding import AudioEncoding
-from websockets.exceptions import ConnectionClosedError 
-
 
 PUNCTUATION_TERMINATORS = [".", "!", "?"]
 NUM_RESTARTS = 5
@@ -62,18 +58,8 @@ class DeepgramTranscriber(BaseAsyncTranscriber[DeepgramTranscriberConfig]):
         self.is_ready = False
         self.logger = logger or logging.getLogger(__name__)
         self.audio_cursor = 0.0
-        self._speaking_signal_is_active = False
         self.deepgram = Deepgram(self.api_key)
         self.transcript_buffer = ""
-    
-    @property
-    def speaking_signal_is_active(self):
-        return self._speaking_signal_is_active
-
-    @speaking_signal_is_active.setter
-    def speaking_signal_is_active(self, value):
-        self._speaking_signal_is_active = value
-
 
     async def _run_loop(self):
         restarts = 0
